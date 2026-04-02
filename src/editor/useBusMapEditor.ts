@@ -59,6 +59,17 @@ function getSelectedPath(paths: PathEntry[], selection: SelectionState) {
   return selection.pathIndex >= 0 ? paths[selection.pathIndex] : undefined
 }
 
+function cloneEntry(entry: PathEntry): PathEntry {
+  return {
+    ...entry,
+    points: entry.points.map((point) => ({
+      ...point,
+      position: { ...point.position },
+    })),
+    bundleLinks: entry.bundleLinks.map((link) => ({ ...link })),
+  }
+}
+
 export function useBusMapEditor() {
   const [paths, setPaths] = useState<PathEntry[]>([])
   const [mode, setMode] = useState<EditorMode>('pathCreation')
@@ -265,25 +276,27 @@ export function useBusMapEditor() {
   }
 
   const commitCreatePoint = (world: Vec2) => {
-    const target = getCreateTarget(paths, selection)
-    let pathIndex = target.pathIndex
+    let nextSelection: SelectionState | null = null
+    let nextActiveEndpoint: ActiveEndpoint | null = null
 
     setPaths((current) => {
       const next = [...current]
+      const target = getCreateTarget(current, selection)
+      let pathIndex = target.pathIndex
       let entry = target.entry
       if (!entry) {
         entry = createEntry(`Custom ${current.length + 1}`, settings.routeColor)
         next.push(entry)
         pathIndex = next.length - 1
       } else {
-        entry = next[pathIndex]
+        entry = cloneEntry(next[pathIndex])
+        next[pathIndex] = entry
       }
 
       if (isEmpty(entry)) {
         entry.points.push(createPoint(world))
-        setSelection({ pathIndex, vertexIndex: 0, segmentStartIndex: -1 })
-        setActiveEndpoint('end')
-        setPreview(null)
+        nextSelection = { pathIndex, vertexIndex: 0, segmentStartIndex: -1 }
+        nextActiveEndpoint = 'end'
         return next
       }
 
@@ -293,8 +306,13 @@ export function useBusMapEditor() {
       }
 
       if (settings.bundleMode && bundleAnchor) {
-        const hostEntry = next[bundleAnchor.pathIndex]
+        let hostEntry = next[bundleAnchor.pathIndex]
         if (hostEntry) {
+          if (bundleAnchor.pathIndex !== pathIndex) {
+            hostEntry = cloneEntry(hostEntry)
+            next[bundleAnchor.pathIndex] = hostEntry
+          }
+
           const hostSegmentStartIndex = bundleAnchor.segmentStartIndex
           const point = hostEntry.bundleLinks.length === 0
             ? createBundleJoinBoundary(placement.endPoint, target.insertAtStart ? -1 : 1, bundleAnchor.offsetSign)
@@ -303,14 +321,14 @@ export function useBusMapEditor() {
           if (target.insertAtStart) {
             entry.points.unshift(point)
             normalizeEntry(entry)
-            setSelection({ pathIndex, vertexIndex: 0, segmentStartIndex: -1 })
-            setActiveEndpoint('start')
+            nextSelection = { pathIndex, vertexIndex: 0, segmentStartIndex: -1 }
+            nextActiveEndpoint = 'start'
           } else {
             entry.points.push(point)
             normalizeEntry(entry)
             const createdSegmentStartIndex = entry.points.length - 2
-            setSelection({ pathIndex, vertexIndex: entry.points.length - 1, segmentStartIndex: -1 })
-            setActiveEndpoint('end')
+            nextSelection = { pathIndex, vertexIndex: entry.points.length - 1, segmentStartIndex: -1 }
+            nextActiveEndpoint = 'end'
             const [targetRunStart, targetRunEnd] = upsertBundleLink(
               entry,
               createdSegmentStartIndex,
@@ -321,7 +339,6 @@ export function useBusMapEditor() {
             upsertBundleLink(hostEntry, hostSegmentStartIndex, pathIndex, targetRunStart, targetRunEnd)
           }
 
-          setPreview(null)
           return next
         }
       }
@@ -329,18 +346,25 @@ export function useBusMapEditor() {
       if (target.insertAtStart) {
         entry.points.unshift(createPoint(placement.endPoint))
         normalizeEntry(entry)
-        setSelection({ pathIndex, vertexIndex: 0, segmentStartIndex: -1 })
-        setActiveEndpoint('start')
+        nextSelection = { pathIndex, vertexIndex: 0, segmentStartIndex: -1 }
+        nextActiveEndpoint = 'start'
       } else {
         entry.points.push(createPoint(placement.endPoint))
         normalizeEntry(entry)
-        setSelection({ pathIndex, vertexIndex: entry.points.length - 1, segmentStartIndex: -1 })
-        setActiveEndpoint('end')
+        nextSelection = { pathIndex, vertexIndex: entry.points.length - 1, segmentStartIndex: -1 }
+        nextActiveEndpoint = 'end'
       }
 
-      setPreview(null)
       return next
     })
+
+    if (nextSelection) {
+      setSelection(nextSelection)
+    }
+    if (nextActiveEndpoint) {
+      setActiveEndpoint(nextActiveEndpoint)
+    }
+    setPreview(null)
   }
 
   const selectAtWorldPoint = (world: Vec2) => {
