@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react'
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react'
 import {
   buildPathData,
   buildSegmentPathData,
@@ -76,6 +76,16 @@ export function EditorCanvas({
     }
   }
 
+  const getMousePoint = (event: ReactMouseEvent<SVGSVGElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const scaleX = canvasWidth / rect.width
+    const scaleY = canvasHeight / rect.height
+    return {
+      x: (event.clientX - rect.left) * scaleX,
+      y: (event.clientY - rect.top) * scaleY,
+    }
+  }
+
   const scheduleMove = (pointerId: number, world: Vec2, mode: 'create' | 'edit') => {
     pendingMoveRef.current = { pointerId, world, mode }
     if (frameRef.current !== null) return
@@ -105,11 +115,9 @@ export function EditorCanvas({
           onBeginPan(event.pointerId, { x: event.clientX, y: event.clientY })
           return
         }
-        if (createMode) {
-          onCreatePoint(world)
-          return
+        if (!createMode) {
+          onBeginSelectionDrag(event.pointerId, world)
         }
-        onBeginSelectionDrag(event.pointerId, world)
       }}
       onPointerMove={(event) => {
         const screen = getPoint(event)
@@ -126,6 +134,11 @@ export function EditorCanvas({
       }}
       onPointerUp={(event) => onEndDrag(event.pointerId)}
       onPointerLeave={(event) => onEndDrag(event.pointerId)}
+      onClick={(event) => {
+        if (!createMode || event.button !== 0 || event.shiftKey) return
+        const screen = getMousePoint(event)
+        onCreatePoint(toWorld(screen, viewport))
+      }}
       onWheel={(event) => {
         event.preventDefault()
         onZoom(getPoint(event), event.deltaY)

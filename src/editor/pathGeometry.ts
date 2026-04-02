@@ -54,17 +54,27 @@ export function pointAt(entry: PathEntry, index: number): Vec2 {
   return entry.points[index].position
 }
 
+export function hasSegmentAt(entry: PathEntry, segmentStartIndex: number): boolean {
+  return segmentStartIndex >= 0 && segmentStartIndex < pointCount(entry) - 1
+}
+
 export function setPointPosition(entry: PathEntry, index: number, position: Vec2) {
   entry.points[index].position = position
 }
 
 export function isSegmentHorizontal(entry: PathEntry, segmentStartIndex: number): boolean {
+  if (!hasSegmentAt(entry, segmentStartIndex)) {
+    return true
+  }
   const start = pointAt(entry, segmentStartIndex)
   const end = pointAt(entry, segmentStartIndex + 1)
   return Math.abs(end.x - start.x) >= Math.abs(end.y - start.y)
 }
 
 export function segmentDirection(entry: PathEntry, segmentStartIndex: number): Vec2 {
+  if (!hasSegmentAt(entry, segmentStartIndex)) {
+    return vec.xy(1, 0)
+  }
   const start = pointAt(entry, segmentStartIndex)
   const end = pointAt(entry, segmentStartIndex + 1)
   const delta = vec.sub(end, start)
@@ -221,6 +231,9 @@ export function buildPathData(entry: PathEntry): string {
 }
 
 export function buildSegmentPathData(entry: PathEntry, segmentStartIndex: number): string {
+  if (!hasSegmentAt(entry, segmentStartIndex)) {
+    return ''
+  }
   const a = pointAt(entry, segmentStartIndex)
   const b = pointAt(entry, segmentStartIndex + 1)
   return `M ${a.x} ${a.y} L ${b.x} ${b.y}`

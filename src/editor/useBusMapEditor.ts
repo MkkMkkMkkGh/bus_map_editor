@@ -18,6 +18,7 @@ import {
   isSegmentHorizontal,
   lastPoint,
   normalizeEntry,
+  hasSegmentAt,
   pointAt,
   segmentDirection,
   setPointPosition,
@@ -111,6 +112,31 @@ export function useBusMapEditor() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [selection])
+
+  useEffect(() => {
+    setSelection((current) => {
+      if (current.pathIndex < 0) return current
+
+      const entry = paths[current.pathIndex]
+      if (!entry) {
+        return { pathIndex: -1, vertexIndex: -1, segmentStartIndex: -1 }
+      }
+
+      const nextVertexIndex =
+        current.vertexIndex >= 0 && current.vertexIndex < entry.points.length ? current.vertexIndex : -1
+      const nextSegmentStartIndex = hasSegmentAt(entry, current.segmentStartIndex) ? current.segmentStartIndex : -1
+
+      if (nextVertexIndex === current.vertexIndex && nextSegmentStartIndex === current.segmentStartIndex) {
+        return current
+      }
+
+      return {
+        pathIndex: current.pathIndex,
+        vertexIndex: nextVertexIndex,
+        segmentStartIndex: nextSegmentStartIndex,
+      }
+    })
+  }, [paths])
 
   const updatePathColor = (color: string) => {
     const normalized = normalizeHexColor(color)
@@ -419,7 +445,16 @@ export function useBusMapEditor() {
   const updateDrag = (pointerId: number, world: Vec2) => {
     if (drag.kind === 'segment' && drag.pointerId === pointerId) {
       const entry = paths[drag.pathIndex]
-      if (!entry) return
+      if (!entry || !hasSegmentAt(entry, drag.segmentStartIndex)) {
+        setDrag({ kind: 'none' })
+        setSnapGuide(null)
+        setSelection((current) =>
+          current.pathIndex === drag.pathIndex
+            ? { pathIndex: drag.pathIndex, vertexIndex: -1, segmentStartIndex: -1 }
+            : current,
+        )
+        return
+      }
 
       const axis = isSegmentHorizontal(entry, drag.segmentStartIndex) ? 'y' : 'x'
       const rawValue = axis === 'y' ? world.y + drag.pointerOffset : world.x + drag.pointerOffset
