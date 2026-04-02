@@ -17,6 +17,7 @@ import {
   isEmpty,
   isSegmentHorizontal,
   lastPoint,
+  normalizeEntry,
   pointAt,
   segmentDirection,
   setPointPosition,
@@ -268,10 +269,12 @@ export function useBusMapEditor() {
 
           if (target.insertAtStart) {
             entry.points.unshift(point)
+            normalizeEntry(entry)
             setSelection({ pathIndex, vertexIndex: 0, segmentStartIndex: -1 })
             setActiveEndpoint('start')
           } else {
             entry.points.push(point)
+            normalizeEntry(entry)
             const createdSegmentStartIndex = entry.points.length - 2
             setSelection({ pathIndex, vertexIndex: entry.points.length - 1, segmentStartIndex: -1 })
             setActiveEndpoint('end')
@@ -292,10 +295,12 @@ export function useBusMapEditor() {
 
       if (target.insertAtStart) {
         entry.points.unshift(createPoint(placement.endPoint))
+        normalizeEntry(entry)
         setSelection({ pathIndex, vertexIndex: 0, segmentStartIndex: -1 })
         setActiveEndpoint('start')
       } else {
         entry.points.push(createPoint(placement.endPoint))
+        normalizeEntry(entry)
         setSelection({ pathIndex, vertexIndex: entry.points.length - 1, segmentStartIndex: -1 })
         setActiveEndpoint('end')
       }
@@ -363,7 +368,9 @@ export function useBusMapEditor() {
           ...points[selection.vertexIndex],
           position: { ...points[selection.vertexIndex].position, [axis]: value },
         }
-        return { ...entry, points }
+        const nextEntry = { ...entry, points }
+        normalizeEntry(nextEntry)
+        return nextEntry
       }),
     )
   }
@@ -443,6 +450,7 @@ export function useBusMapEditor() {
             setPointPosition(next, drag.segmentStartIndex, { ...pointAt(next, drag.segmentStartIndex), x: axisValue })
             setPointPosition(next, drag.segmentStartIndex + 1, { ...pointAt(next, drag.segmentStartIndex + 1), x: axisValue })
           }
+          normalizeEntry(next)
           return next
         }),
       )

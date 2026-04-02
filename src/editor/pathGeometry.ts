@@ -168,6 +168,51 @@ export function hasBundleLink(entry: PathEntry, segmentStartIndex: number): bool
   )
 }
 
+function canRemoveIntermediatePoint(entry: PathEntry, pointIndex: number): boolean {
+  const totalPoints = pointCount(entry)
+  if (pointIndex <= 0 || pointIndex >= totalPoints - 1) {
+    return false
+  }
+
+  const point = entry.points[pointIndex]
+  if (point.role === 'bundleJoinBoundary') {
+    return false
+  }
+
+  const previous = pointAt(entry, pointIndex - 1)
+  const current = pointAt(entry, pointIndex)
+  const next = pointAt(entry, pointIndex + 1)
+
+  const previousEqualsCurrent = vec.distanceSquared(previous, current) < 0.001
+  const currentEqualsNext = vec.distanceSquared(current, next) < 0.001
+  if (previousEqualsCurrent || currentEqualsNext) {
+    return true
+  }
+
+  const incomingHorizontal = Math.abs(previous.y - current.y) < 0.001
+  const outgoingHorizontal = Math.abs(current.y - next.y) < 0.001
+  if (incomingHorizontal !== outgoingHorizontal) {
+    return false
+  }
+
+  if (incomingHorizontal) {
+    return Math.abs(previous.y - next.y) < 0.001
+  }
+
+  return Math.abs(previous.x - next.x) < 0.001
+}
+
+export function normalizeEntry(entry: PathEntry) {
+  let index = 1
+  while (index < entry.points.length - 1) {
+    if (canRemoveIntermediatePoint(entry, index)) {
+      entry.points.splice(index, 1)
+      continue
+    }
+    index += 1
+  }
+}
+
 export function buildPathData(entry: PathEntry): string {
   const points = entry.points.map((point) => point.position)
   if (points.length === 0) return ''
