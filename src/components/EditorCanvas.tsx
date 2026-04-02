@@ -96,7 +96,7 @@ export function EditorCanvas({
   return (
     <svg
       viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
-      className="h-full min-h-[780px] w-full rounded-[24px] bg-[linear-gradient(180deg,#f9fdff_0%,#eef5f7_100%)]"
+      className="h-full min-h-[780px] w-full rounded bg-[#1f1f1f]"
       onPointerDown={(event) => {
         const screen = getPoint(event)
         const world = toWorld(screen, viewport)
@@ -132,7 +132,7 @@ export function EditorCanvas({
     >
       <defs>
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#dce8ee" strokeWidth="1" />
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#2f2f2f" strokeWidth="1" />
         </pattern>
       </defs>
 
@@ -154,7 +154,7 @@ export function EditorCanvas({
               <path
                 d={buildSegmentPathData(entry, selectedSegmentStartIndex)}
                 fill="none"
-                stroke={hasBundleLink(entry, selectedSegmentStartIndex) ? '#ec4899' : '#10b981'}
+                stroke={hasBundleLink(entry, selectedSegmentStartIndex) ? '#ec4899' : '#22c55e'}
                 strokeWidth={strokeWidth + 4}
                 strokeLinecap="round"
               />
@@ -166,8 +166,8 @@ export function EditorCanvas({
                 cx={point.position.x}
                 cy={point.position.y}
                 r={selectedPathIndex === pathIndex && selectedVertexIndex === pointIndex ? 8 : 5}
-                fill={point.role === 'bundleJoinBoundary' ? '#f59e0b' : '#dc2626'}
-                stroke="white"
+                fill={point.role === 'bundleJoinBoundary' ? '#d7ba7d' : '#ce9178'}
+                stroke="#1e1e1e"
                 strokeWidth="2"
               />
             ))}
@@ -178,7 +178,7 @@ export function EditorCanvas({
           <path
             d={`M ${preview.start.x} ${preview.start.y} L ${preview.end.x} ${preview.end.y}`}
             fill="none"
-            stroke={preview.bundle ? '#10b981' : '#1b6ef3'}
+            stroke={preview.bundle ? '#22c55e' : '#4fc1ff'}
             strokeWidth={strokeWidth}
             strokeLinecap="round"
             opacity="0.6"
