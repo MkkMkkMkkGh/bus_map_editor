@@ -138,6 +138,13 @@ export function useBusMapEditor() {
     })
   }, [paths])
 
+  useEffect(() => {
+    if (mode !== 'pathCreation') {
+      setPreview(null)
+      setSnapGuide(null)
+    }
+  }, [mode])
+
   const updatePathColor = (color: string) => {
     const normalized = normalizeHexColor(color)
     setSettings((current) => ({ ...current, routeColor: normalized }))
