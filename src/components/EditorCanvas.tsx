@@ -96,7 +96,8 @@ export function EditorCanvas({
   return (
     <svg
       viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
-      className="h-full min-h-[780px] w-full rounded bg-[#1f1f1f]"
+      preserveAspectRatio="none"
+      className="h-full w-full rounded bg-[#1f1f1f]"
       onPointerDown={(event) => {
         const screen = getPoint(event)
         const world = toWorld(screen, viewport)

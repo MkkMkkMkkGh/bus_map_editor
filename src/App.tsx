@@ -79,7 +79,7 @@ function App() {
                   <span>Map Canvas</span>
                   <span>Shift + Drag to Pan, Wheel to Zoom</span>
                 </div>
-                <div className="min-h-0 flex-1 bg-[#1e1e1e] p-2">
+                <div className="min-h-0 flex-1 bg-[#1e1e1e]">
                   <EditorCanvas
                     canvasWidth={CANVAS_WIDTH}
                     canvasHeight={CANVAS_HEIGHT}
