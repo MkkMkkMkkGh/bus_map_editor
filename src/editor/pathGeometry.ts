@@ -96,6 +96,23 @@ export function getBusStopConstraintLength(entry: PathEntry, segmentStartIndex: 
   return Math.max(0, (busStopCount - 1) * busStopSpacing)
 }
 
+export function shiftSegmentPointIndices(entry: PathEntry, startSegmentIndex: number, delta: number) {
+  if (delta === 0) return
+  entry.segmentPoints = (entry.segmentPoints ?? []).map((point) =>
+    point.segmentStartIndex >= startSegmentIndex
+      ? { ...point, segmentStartIndex: point.segmentStartIndex + delta }
+      : point,
+  )
+}
+
+function reindexSegmentPointsForRemovedPoint(entry: PathEntry, removedPointIndex: number) {
+  entry.segmentPoints = (entry.segmentPoints ?? []).map((point) =>
+    point.segmentStartIndex >= removedPointIndex
+      ? { ...point, segmentStartIndex: point.segmentStartIndex - 1 }
+      : point,
+  )
+}
+
 export function relayoutSegmentPoints(entry: PathEntry, busStopSpacing: number) {
   const grouped = new Map<number, SegmentPoint[]>()
   entry.segmentPoints = (entry.segmentPoints ?? []).filter((point) => hasSegmentAt(entry, point.segmentStartIndex))
@@ -277,6 +294,7 @@ export function normalizeEntry(entry: PathEntry) {
   while (index < entry.points.length - 1) {
     if (canRemoveIntermediatePoint(entry, index)) {
       entry.points.splice(index, 1)
+      reindexSegmentPointsForRemovedPoint(entry, index)
       continue
     }
     index += 1

@@ -26,6 +26,7 @@ import {
   segmentDirection,
   segmentLength,
   setPointPosition,
+  shiftSegmentPointIndices,
   upsertBundleLink,
 } from './pathGeometry'
 import { findSegmentStartIndexAtPosition, findVertexIndexAtPosition, isSelectedVertexEndpoint } from './pathSelection'
@@ -393,6 +394,7 @@ export function useBusMapEditor() {
             : createPoint(placement.endPoint)
 
           if (target.insertAtStart) {
+            shiftSegmentPointIndices(entry, 0, 1)
             entry.points.unshift(point)
             normalizeEntry(entry)
             relayoutSegmentPoints(entry, settings.busStopSpacing)
@@ -420,6 +422,7 @@ export function useBusMapEditor() {
       }
 
       if (target.insertAtStart) {
+        shiftSegmentPointIndices(entry, 0, 1)
         entry.points.unshift(createPoint(placement.endPoint))
         normalizeEntry(entry)
         relayoutSegmentPoints(entry, settings.busStopSpacing)
