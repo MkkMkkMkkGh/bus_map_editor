@@ -124,6 +124,7 @@ function App() {
                 activeEndpoint={editor.activeEndpoint}
                 setActiveEndpoint={editor.setActiveEndpoint}
                 useSelectedSegmentAsBundleHost={editor.useSelectedSegmentAsBundleHost}
+                addBusStopToSelectedSegment={editor.addBusStopToSelectedSegment}
                 updateSelectedVertex={editor.updateSelectedVertex}
                 removePath={editor.removePath}
                 selectPath={editor.selectPath}

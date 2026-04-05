@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { hasSelectedSegment } from '../editor/pathSelection'
-import { pointCount } from '../editor/pathGeometry'
+import { getBusStopConstraintLength, pointCount, segmentLength } from '../editor/pathGeometry'
 import type { ActiveEndpoint, PathEntry, SelectionState } from '../types'
 
 type Props = {
@@ -15,6 +15,7 @@ type Props = {
     bundleGap: number
     routeColor: string
     bundleMode: boolean
+    busStopSpacing: number
   }
   setSettings: Dispatch<
     SetStateAction<{
@@ -22,6 +23,7 @@ type Props = {
       bundleGap: number
       routeColor: string
       bundleMode: boolean
+      busStopSpacing: number
     }>
   >
   updatePathColor: (value: string) => void
@@ -31,6 +33,7 @@ type Props = {
   activeEndpoint: ActiveEndpoint
   setActiveEndpoint: (value: ActiveEndpoint) => void
   useSelectedSegmentAsBundleHost: () => void
+  addBusStopToSelectedSegment: () => void
   updateSelectedVertex: (axis: 'x' | 'y', value: number) => void
   removePath: (index: number) => void
   selectPath: (index: number) => void
@@ -52,10 +55,29 @@ export function EditorSidebar({
   activeEndpoint,
   setActiveEndpoint,
   useSelectedSegmentAsBundleHost,
+  addBusStopToSelectedSegment,
   updateSelectedVertex,
   removePath,
   selectPath,
 }: Props) {
+  const selectedSegmentBusStopCount =
+    selectedPath && selection.segmentStartIndex >= 0
+      ? (selectedPath.segmentPoints ?? []).filter(
+          (point) => point.kind === 'busStop' && point.segmentStartIndex === selection.segmentStartIndex,
+        ).length
+      : 0
+  const selectedSegmentLength =
+    selectedPath && selection.segmentStartIndex >= 0 ? segmentLength(selectedPath, selection.segmentStartIndex) : 0
+  const selectedSegmentBusStopConstraint =
+    selectedPath && selection.segmentStartIndex >= 0
+      ? getBusStopConstraintLength(selectedPath, selection.segmentStartIndex, settings.busStopSpacing)
+      : 0
+  const nextBusStopConstraint = Math.max(0, selectedSegmentBusStopCount * settings.busStopSpacing)
+  const canAddBusStop =
+    !!selectedPath &&
+    selection.segmentStartIndex >= 0 &&
+    selectedSegmentLength + 0.001 >= nextBusStopConstraint
+
   return (
     <div className="flex h-full min-h-0 flex-col text-[#cccccc]">
       <div className="border-b border-[#3c3c3c] px-4 py-3">
@@ -131,9 +153,21 @@ export function EditorSidebar({
             ) : null}
 
             {hasSelectedSegment(paths, selection) ? (
-              <button className="w-full rounded bg-[#0e639c] px-3 py-2 text-sm text-white" onClick={useSelectedSegmentAsBundleHost}>
-                Use Segment As Bundle Host
-              </button>
+              <>
+                <button
+                  className={`w-full rounded px-3 py-2 text-sm ${canAddBusStop ? 'bg-[#0e639c] text-white' : 'bg-[#37373d] text-[#9d9d9d]'}`}
+                  onClick={addBusStopToSelectedSegment}
+                  disabled={!canAddBusStop}
+                >
+                  Add Bus Stop
+                </button>
+                <button className="w-full rounded bg-[#0e639c] px-3 py-2 text-sm text-white" onClick={useSelectedSegmentAsBundleHost}>
+                  Use Segment As Bundle Host
+                </button>
+                <div className="rounded border border-[#3c3c3c] bg-[#252526] px-3 py-2 text-xs text-[#9d9d9d]">
+                  {selectedSegmentBusStopCount} bus stops. Segment length {Math.round(selectedSegmentLength)} px. Reserved for bus stops {Math.round(selectedSegmentBusStopConstraint)} px.
+                </div>
+              </>
             ) : null}
           </div>
         </section>
@@ -164,6 +198,7 @@ export function EditorSidebar({
             {[
               ['Stroke width', settings.strokeWidth, 4, 20, (value: number) => setSettings((current) => ({ ...current, strokeWidth: value }))],
               ['Bundle gap', settings.bundleGap, 6, 40, (value: number) => setSettings((current) => ({ ...current, bundleGap: value }))],
+              ['Bus stop gap', settings.busStopSpacing, 10, 80, (value: number) => setSettings((current) => ({ ...current, busStopSpacing: value }))],
             ].map(([label, value, min, max, onChange]) => (
               <label key={label as string} className="block text-xs font-medium uppercase tracking-wide text-[#9d9d9d]">
                 {label as string}

@@ -4,6 +4,7 @@ import {
   buildPathData,
   buildSegmentPathData,
   hasBundleLink,
+  pointAlongSegment,
 } from '../editor/pathGeometry'
 import { toWorld } from '../editor/useBusMapEditor'
 import type { DragState, PathEntry, Vec2, Viewport } from '../types'
@@ -185,6 +186,21 @@ export function EditorCanvas({
                 strokeWidth="2"
               />
             ))}
+
+            {(entry.segmentPoints ?? []).map((point) => {
+              const position = pointAlongSegment(entry, point.segmentStartIndex, point.offset)
+              return (
+                <circle
+                  key={point.id}
+                  cx={position.x}
+                  cy={position.y}
+                  r={6}
+                  fill={entry.color}
+                  stroke="#1e1e1e"
+                  strokeWidth="2"
+                />
+              )
+            })}
           </g>
         ))}
 

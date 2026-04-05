@@ -13,19 +13,24 @@ import {
   createBundleJoinBoundary,
   createEntry,
   createPoint,
+  createSegmentPoint,
   firstPoint,
+  getBusStopConstraintLength,
   isEmpty,
   isSegmentHorizontal,
   lastPoint,
   normalizeEntry,
   hasSegmentAt,
   pointAt,
+  relayoutSegmentPoints,
   segmentDirection,
+  segmentLength,
   setPointPosition,
   upsertBundleLink,
 } from './pathGeometry'
 import { findSegmentStartIndexAtPosition, findVertexIndexAtPosition, isSelectedVertexEndpoint } from './pathSelection'
 import { snapAxisValue, snapSingleSegmentEndpoint } from './pathSnap'
+import { vec } from './vector'
 
 export const CANVAS_WIDTH = 1400
 export const CANVAS_HEIGHT = 920
@@ -67,7 +72,52 @@ function cloneEntry(entry: PathEntry): PathEntry {
       position: { ...point.position },
     })),
     bundleLinks: entry.bundleLinks.map((link) => ({ ...link })),
+    segmentPoints: (entry.segmentPoints ?? []).map((point) => ({ ...point })),
   }
+}
+
+function clampSegmentDragAxisValue(
+  entry: PathEntry,
+  segmentStartIndex: number,
+  axis: 'x' | 'y',
+  value: number,
+  busStopSpacing: number,
+) {
+  let minValue = Number.NEGATIVE_INFINITY
+  let maxValue = Number.POSITIVE_INFINITY
+
+  if (segmentStartIndex > 0) {
+    const previousConstraint = getBusStopConstraintLength(entry, segmentStartIndex - 1, busStopSpacing)
+    if (previousConstraint > 0) {
+      const fixed = pointAt(entry, segmentStartIndex - 1)
+      const moving = pointAt(entry, segmentStartIndex)
+      const fixedValue = axis === 'y' ? fixed.y : fixed.x
+      const movingValue = axis === 'y' ? moving.y : moving.x
+      if (movingValue >= fixedValue) {
+        minValue = Math.max(minValue, fixedValue + previousConstraint)
+      } else {
+        maxValue = Math.min(maxValue, fixedValue - previousConstraint)
+      }
+    }
+  }
+
+  if (hasSegmentAt(entry, segmentStartIndex + 1)) {
+    const nextConstraint = getBusStopConstraintLength(entry, segmentStartIndex + 1, busStopSpacing)
+    if (nextConstraint > 0) {
+      const moving = pointAt(entry, segmentStartIndex + 1)
+      const fixed = pointAt(entry, segmentStartIndex + 2)
+      const movingValue = axis === 'y' ? moving.y : moving.x
+      const fixedValue = axis === 'y' ? fixed.y : fixed.x
+      if (movingValue >= fixedValue) {
+        minValue = Math.max(minValue, fixedValue + nextConstraint)
+      } else {
+        maxValue = Math.min(maxValue, fixedValue - nextConstraint)
+      }
+    }
+  }
+
+  if (minValue > maxValue) return value
+  return clamp(value, minValue, maxValue)
 }
 
 export function useBusMapEditor() {
@@ -79,6 +129,7 @@ export function useBusMapEditor() {
     bundleGap: 14,
     routeColor: DEFAULT_COLOR,
     bundleMode: false,
+    busStopSpacing: 28,
   })
   const [viewport, setViewport] = useState<Viewport>({ scale: 1, offset: { x: 0, y: 0 } })
   const [drag, setDrag] = useState<DragState>({ kind: 'none' })
@@ -113,7 +164,9 @@ export function useBusMapEditor() {
         setPaths((current) =>
           current.map((entry, pathIndex) => {
             if (pathIndex !== selection.pathIndex || entry.points.length <= 2) return entry
-            return { ...entry, points: entry.points.filter((_, pointIndex) => pointIndex !== selection.vertexIndex) }
+            const nextEntry = { ...entry, points: entry.points.filter((_, pointIndex) => pointIndex !== selection.vertexIndex) }
+            relayoutSegmentPoints(nextEntry, settings.busStopSpacing)
+            return nextEntry
           }),
         )
         setSelection((current) => ({ ...current, vertexIndex: -1 }))
@@ -122,7 +175,7 @@ export function useBusMapEditor() {
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [selection])
+  }, [selection, settings.busStopSpacing])
 
   useEffect(() => {
     setSelection((current) => {
@@ -155,6 +208,17 @@ export function useBusMapEditor() {
       setSnapGuide(null)
     }
   }, [mode])
+
+  useEffect(() => {
+    setPaths((current) =>
+      current.map((entry) => {
+        if ((entry.segmentPoints ?? []).length === 0) return entry
+        const nextEntry = cloneEntry(entry)
+        relayoutSegmentPoints(nextEntry, settings.busStopSpacing)
+        return nextEntry
+      }),
+    )
+  }, [settings.busStopSpacing])
 
   const updatePathColor = (color: string) => {
     const normalized = normalizeHexColor(color)
@@ -305,6 +369,16 @@ export function useBusMapEditor() {
         return next
       }
 
+      if (vec.distanceSquared(placement.anchor, placement.endPoint) < 0.001) {
+        nextSelection = {
+          pathIndex,
+          vertexIndex: target.insertAtStart ? 0 : entry.points.length - 1,
+          segmentStartIndex: -1,
+        }
+        nextActiveEndpoint = target.insertAtStart ? 'start' : 'end'
+        return next
+      }
+
       if (settings.bundleMode && bundleAnchor) {
         let hostEntry = next[bundleAnchor.pathIndex]
         if (hostEntry) {
@@ -321,11 +395,13 @@ export function useBusMapEditor() {
           if (target.insertAtStart) {
             entry.points.unshift(point)
             normalizeEntry(entry)
+            relayoutSegmentPoints(entry, settings.busStopSpacing)
             nextSelection = { pathIndex, vertexIndex: 0, segmentStartIndex: -1 }
             nextActiveEndpoint = 'start'
           } else {
             entry.points.push(point)
             normalizeEntry(entry)
+            relayoutSegmentPoints(entry, settings.busStopSpacing)
             const createdSegmentStartIndex = entry.points.length - 2
             nextSelection = { pathIndex, vertexIndex: entry.points.length - 1, segmentStartIndex: -1 }
             nextActiveEndpoint = 'end'
@@ -346,11 +422,13 @@ export function useBusMapEditor() {
       if (target.insertAtStart) {
         entry.points.unshift(createPoint(placement.endPoint))
         normalizeEntry(entry)
+        relayoutSegmentPoints(entry, settings.busStopSpacing)
         nextSelection = { pathIndex, vertexIndex: 0, segmentStartIndex: -1 }
         nextActiveEndpoint = 'start'
       } else {
         entry.points.push(createPoint(placement.endPoint))
         normalizeEntry(entry)
+        relayoutSegmentPoints(entry, settings.busStopSpacing)
         nextSelection = { pathIndex, vertexIndex: entry.points.length - 1, segmentStartIndex: -1 }
         nextActiveEndpoint = 'end'
       }
@@ -427,7 +505,32 @@ export function useBusMapEditor() {
         }
         const nextEntry = { ...entry, points }
         normalizeEntry(nextEntry)
+        relayoutSegmentPoints(nextEntry, settings.busStopSpacing)
         return nextEntry
+      }),
+    )
+  }
+
+  const addBusStopToSelectedSegment = () => {
+    if (selection.pathIndex < 0 || selection.segmentStartIndex < 0) return
+
+    setPaths((current) =>
+      current.map((entry, pathIndex) => {
+        if (pathIndex !== selection.pathIndex) return entry
+
+        const next = cloneEntry(entry)
+        const nextCount =
+          next.segmentPoints.filter(
+            (point) => point.kind === 'busStop' && point.segmentStartIndex === selection.segmentStartIndex,
+          ).length + 1
+        const requiredLength = Math.max(0, (nextCount - 1) * settings.busStopSpacing)
+        if (segmentLength(next, selection.segmentStartIndex) + 0.001 < requiredLength) {
+          return entry
+        }
+
+        next.segmentPoints.push(createSegmentPoint('busStop', selection.segmentStartIndex))
+        relayoutSegmentPoints(next, settings.busStopSpacing)
+        return next
       }),
     )
   }
@@ -508,7 +611,13 @@ export function useBusMapEditor() {
         current.map((candidate, pathIndex) => {
           if (pathIndex !== drag.pathIndex) return candidate
           const next = { ...candidate, points: candidate.points.map((point) => ({ ...point })) }
-          const axisValue = snapResult.value
+          const axisValue = clampSegmentDragAxisValue(
+            candidate,
+            drag.segmentStartIndex,
+            axis,
+            snapResult.value,
+            settings.busStopSpacing,
+          )
           if (axis === 'y') {
             setPointPosition(next, drag.segmentStartIndex, { ...pointAt(next, drag.segmentStartIndex), y: axisValue })
             setPointPosition(next, drag.segmentStartIndex + 1, { ...pointAt(next, drag.segmentStartIndex + 1), y: axisValue })
@@ -517,6 +626,7 @@ export function useBusMapEditor() {
             setPointPosition(next, drag.segmentStartIndex + 1, { ...pointAt(next, drag.segmentStartIndex + 1), x: axisValue })
           }
           normalizeEntry(next)
+          relayoutSegmentPoints(next, settings.busStopSpacing)
           return next
         }),
       )
@@ -564,6 +674,7 @@ export function useBusMapEditor() {
     commitCreatePoint,
     useSelectedSegmentAsBundleHost,
     updateSelectedVertex,
+    addBusStopToSelectedSegment,
     removePath,
     selectPath,
     beginPan,

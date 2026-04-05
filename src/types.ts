@@ -18,6 +18,13 @@ export type BundleLink = {
   otherSegmentEndIndex: number
 }
 
+export type SegmentPoint = {
+  id: string
+  kind: 'busStop'
+  segmentStartIndex: number
+  offset: number
+}
+
 export type PathEntry = {
   id: string
   routeId?: string
@@ -25,6 +32,7 @@ export type PathEntry = {
   color: string
   points: PathPoint[]
   bundleLinks: BundleLink[]
+  segmentPoints: SegmentPoint[]
 }
 
 export type EditorMode = 'pathCreation' | 'pathSelection'
@@ -55,6 +63,7 @@ export type EditorSettings = {
   bundleGap: number
   routeColor: string
   bundleMode: boolean
+  busStopSpacing: number
 }
 
 export type DragState =

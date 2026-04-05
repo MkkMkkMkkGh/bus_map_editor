@@ -1,4 +1,4 @@
-import type { PathEntry, PathPoint, Vec2 } from '../types'
+import type { PathEntry, PathPoint, SegmentPoint, Vec2 } from '../types'
 import { vec } from './vector'
 
 export function createPoint(position: Vec2): PathPoint {
@@ -31,6 +31,16 @@ export function createEntry(label: string, color: string, routeId?: string): Pat
     color,
     points: [],
     bundleLinks: [],
+    segmentPoints: [],
+  }
+}
+
+export function createSegmentPoint(kind: SegmentPoint['kind'], segmentStartIndex: number, offset = 1): SegmentPoint {
+  return {
+    id: `${kind}-${Math.random().toString(36).slice(2, 9)}`,
+    kind,
+    segmentStartIndex,
+    offset,
   }
 }
 
@@ -56,6 +66,56 @@ export function pointAt(entry: PathEntry, index: number): Vec2 {
 
 export function hasSegmentAt(entry: PathEntry, segmentStartIndex: number): boolean {
   return segmentStartIndex >= 0 && segmentStartIndex < pointCount(entry) - 1
+}
+
+export function segmentLength(entry: PathEntry, segmentStartIndex: number): number {
+  if (!hasSegmentAt(entry, segmentStartIndex)) return 0
+  return vec.distance(pointAt(entry, segmentStartIndex), pointAt(entry, segmentStartIndex + 1))
+}
+
+export function pointAlongSegment(entry: PathEntry, segmentStartIndex: number, offset: number): Vec2 {
+  if (!hasSegmentAt(entry, segmentStartIndex)) {
+    return vec.xy(0, 0)
+  }
+  const start = pointAt(entry, segmentStartIndex)
+  const end = pointAt(entry, segmentStartIndex + 1)
+  return {
+    x: start.x + (end.x - start.x) * offset,
+    y: start.y + (end.y - start.y) * offset,
+  }
+}
+
+export function getSegmentPoints(entry: PathEntry, segmentStartIndex: number, kind?: SegmentPoint['kind']) {
+  return (entry.segmentPoints ?? []).filter(
+    (point) => point.segmentStartIndex === segmentStartIndex && (kind ? point.kind === kind : true),
+  )
+}
+
+export function getBusStopConstraintLength(entry: PathEntry, segmentStartIndex: number, busStopSpacing: number) {
+  const busStopCount = getSegmentPoints(entry, segmentStartIndex, 'busStop').length
+  return Math.max(0, (busStopCount - 1) * busStopSpacing)
+}
+
+export function relayoutSegmentPoints(entry: PathEntry, busStopSpacing: number) {
+  const grouped = new Map<number, SegmentPoint[]>()
+  entry.segmentPoints = (entry.segmentPoints ?? []).filter((point) => hasSegmentAt(entry, point.segmentStartIndex))
+
+  entry.segmentPoints.forEach((point) => {
+    const group = grouped.get(point.segmentStartIndex)
+    if (group) {
+      group.push(point)
+      return
+    }
+    grouped.set(point.segmentStartIndex, [point])
+  })
+
+  grouped.forEach((group, segmentStartIndex) => {
+    const length = segmentLength(entry, segmentStartIndex)
+    group.forEach((point, index) => {
+      const distanceFromEnd = point.kind === 'busStop' ? index * busStopSpacing : 0
+      point.offset = length <= 0 ? 1 : Math.max(0, Math.min(1, 1 - distanceFromEnd / length))
+    })
+  })
 }
 
 export function setPointPosition(entry: PathEntry, index: number, position: Vec2) {
